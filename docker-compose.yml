@@ -1,0 +1,11 @@
+services:
+  instagram-cancellation:
+    build: .
+    container_name: instagram-cancellation
+    volumes:
+      - ./data:/app/data
+    environment:
+      - PYTHONUNBUFFERED=1
+    network_mode: "host"  # Use host networking for easier display forwarding
+    stdin_open: true      # Keep STDIN open
+    tty: true             # Allocate a pseudo-TTY
