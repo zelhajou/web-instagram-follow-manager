@@ -146,6 +146,7 @@ class InstagramCancellationTool:
 
     def check_for_2fa(self):
         """Check if 2FA screen is present."""
+        self.driver.save_screenshot("/app/data/checking_2fa.png")
         try:
             # Look for common 2FA indicators
             two_factor_indicators = [
@@ -185,8 +186,6 @@ class InstagramCancellationTool:
         except:
             return False
 
-    # In the login method, add this logic for 2FA:
-
     def handle_2fa(self):
         """Handle 2FA without requiring visible browser"""
         try:
@@ -206,36 +205,102 @@ class InstagramCancellationTool:
                 verification_code = input("Enter the 6-digit verification code from your auth app: ").strip()
                 
                 # Try to find the input field
-                for selector in ["input[name='verificationCode']", "input[aria-label='Security code']", "input[inputmode='numeric']"]:
+                input_found = False
+                for selector in ["input[name='verificationCode']", "input[aria-label='Security code']", "input[inputmode='numeric']", "input[type='tel']", "input[type='text']"]:
                     try:
                         code_input = self.driver.find_element(By.CSS_SELECTOR, selector)
-                        code_input.clear()
-                        code_input.send_keys(verification_code)
-                        print("Entered verification code")
-                        break
+                        if code_input.is_displayed():
+                            code_input.clear()
+                            code_input.send_keys(verification_code)
+                            print(f"Entered verification code using selector: {selector}")
+                            input_found = True
+                            break
                     except:
                         continue
+                
+                if not input_found:
+                    print("Could not find verification code input field. Taking screenshot...")
+                    self.driver.save_screenshot("/app/data/2fa_input_missing.png")
+                    print("See screenshot at /app/data/2fa_input_missing.png")
+                    
+                    # Try to enter code using JavaScript as a fallback
+                    try:
+                        js_code = f"""document.querySelector('input[inputmode="numeric"]').value = '{verification_code}';"""
+                        self.driver.execute_script(js_code)
+                        print("Attempted to enter code using JavaScript")
+                    except Exception as e:
+                        print(f"JavaScript entry failed: {str(e)}")
                 
                 # Try to find and click the confirm button
-                for button_text in ["Confirm", "Submit", "Verify"]:
+                button_found = False
+                for button_selector in [
+                    "//button[contains(., 'Confirm')]",
+                    "//button[contains(., 'Submit')]",
+                    "//button[contains(., 'Verify')]",
+                    "//button[contains(@class, 'sqdOP')]",
+                    "button[type='submit']"
+                ]:
                     try:
-                        button = self.driver.find_element(By.XPATH, f"//button[contains(text(), '{button_text}')]")
-                        button.click()
-                        print(f"Clicked {button_text} button")
-                        break
+                        button = None
+                        if '//' in button_selector:
+                            button = self.driver.find_element(By.XPATH, button_selector)
+                        else:
+                            button = self.driver.find_element(By.CSS_SELECTOR, button_selector)
+                        
+                        if button and button.is_displayed():
+                            button.click()
+                            print(f"Clicked button using selector: {button_selector}")
+                            button_found = True
+                            break
                     except:
                         continue
                 
-                # Wait for processing
-                time.sleep(5)
+                if not button_found:
+                    print("Could not find confirmation button. Taking screenshot...")
+                    self.driver.save_screenshot("/app/data/2fa_button_missing.png")
+                    print("See screenshot at /app/data/2fa_button_missing.png")
+                    
+                    # Try to submit the form as a fallback
+                    try:
+                        self.driver.find_element(By.TAG_NAME, "form").submit()
+                        print("Attempted to submit the form directly")
+                    except:
+                        print("Form submission also failed")
+                
+                # Wait for processing - extended time
+                print("Waiting for 2FA processing (30 seconds)...")
+                time.sleep(30)
                 self.driver.save_screenshot("/app/data/after_2fa.png")
                 print("Check /app/data/after_2fa.png to see the result")
                 
                 # Check if we're still on the 2FA screen
                 if "two_factor" in self.driver.current_url or "challenge" in self.driver.current_url:
+                    current_url = self.driver.current_url
+                    print(f"Still on verification screen: {current_url}")
+                    
+                    # One more attempt with a different approach
+                    print("Trying alternative approach...")
+                    try:
+                        buttons = self.driver.find_elements(By.TAG_NAME, "button")
+                        for button in buttons:
+                            if button.is_displayed():
+                                button.click()
+                                print("Clicked an available button")
+                                time.sleep(2)
+                        
+                        time.sleep(10)
+                        self.driver.save_screenshot("/app/data/final_2fa_attempt.png")
+                        
+                        if "two_factor" not in self.driver.current_url and "challenge" not in self.driver.current_url:
+                            print("Alternative approach succeeded!")
+                            return True
+                    except:
+                        pass
+                    
                     print("2FA may have failed. Check the screenshot.")
                     return False
                 
+                print("2FA verification appears successful!")
                 return True
             
             return True  # If no 2FA needed
@@ -725,6 +790,8 @@ def main():
                     f.write(f"{username}\n")
             print("Failed usernames saved to /app/data/failed_cancellations.txt")
         
+    except KeyboardInterrupt:
+        print("\nOperation cancelled by user. Saving progress...")
     except KeyboardInterrupt:
         print("\nOperation cancelled by user. Saving progress...")
     except Exception as e:

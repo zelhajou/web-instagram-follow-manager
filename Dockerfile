@@ -1,6 +1,6 @@
 FROM python:3.9-slim
 
-# Install Chrome
+# Install Chrome and necessary dependencies
 RUN apt-get update && apt-get install -y \
     wget \
     gnupg \
@@ -42,22 +42,21 @@ COPY requirements.txt .
 
 # Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install instagrapi pillow
 
-# Copy script
+# Copy scripts
 COPY instagram_cancellation.py .
+COPY instagram_api_cancellation.py .
 
 # Create a volume for data
 VOLUME /app/data
 
-# Add these lines to your existing Dockerfile
-# (near the end, before the ENTRYPOINT)
+# Set up a virtual display
+ENV DISPLAY=:99
 
-# Install xvfb for headless display
-RUN apt-get update && apt-get install -y xvfb
+# Create a wrapper script that runs xvfb
+RUN echo '#!/bin/bash\nXvfb :99 -screen 0 1920x1080x24 &\nsleep 1\npython "$@"\n' > /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
-# Create a wrapper script
-RUN echo '#!/bin/bash\nxvfb-run -a -s "-screen 0 1920x1080x24" python instagram_cancellation.py "$@"' > /app/run_with_xvfb.sh
-RUN chmod +x /app/run_with_xvfb.sh
-
-# Change the entrypoint to use the wrapper script
-ENTRYPOINT ["/app/run_with_xvfb.sh"]
+ENTRYPOINT ["/app/entrypoint.sh"]
+CMD ["instagram_cancellation.py"]
