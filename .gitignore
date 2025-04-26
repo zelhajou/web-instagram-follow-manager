@@ -1,3 +1,4 @@
 /data/*.png
 data/*.html
 data/*.json
+.DS_Store
