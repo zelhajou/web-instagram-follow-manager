@@ -46,7 +46,6 @@ RUN pip install instagrapi pillow
 
 # Copy scripts
 COPY instagram_cancellation.py .
-COPY instagram_api_cancellation.py .
 
 # Create a volume for data
 VOLUME /app/data
